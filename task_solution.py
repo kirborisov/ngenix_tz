@@ -14,7 +14,16 @@ class AppConfig:
     def __init__(self, num_zip_files, num_xml_in_zip, path_zips):
         self.num_zip_files = num_zip_files
         self.num_xml_in_zip = num_xml_in_zip
-        self.path_zips = path_zips
+        self.path_zips = self.mkdir_if_not_exists(path_zips)
+
+    def mkdir_if_not_exists(self, path_zips):
+        if not os.path.exists(path_zips):
+            try:
+                os.makedirs(path_zips)
+            except OSError as e:
+                print("Error: %s : %s" % (path_zips, e.strerror))
+
+        return path_zips
 
 
 class XMLCreator:
@@ -46,8 +55,10 @@ class XMLCreator:
 
     def create_root(self) -> _Element:
         root = etree.Element("root")
-        root.append(etree.Element("var", name="id", value=self.gen_random_str()))
-        root.append(etree.Element("var", name="level", value=str(random.randint(1, 100))))
+        root.append(etree.Element("var", name="id",
+                                  value=self.gen_random_str()))
+        root.append(etree.Element("var", name="level",
+                                  value=str(random.randint(1, 100))))
         root.append(self.create_random_objects())
         return root
 
@@ -59,11 +70,13 @@ class ZIPCreator:
     """ Создание zip-архивов, в каждом N xml файлов со случайными данными. """
 
     def __init__(self, config: AppConfig):
-        self.config= config
+        self.config = config
 
     def create(self) -> None:
         xml_creator = XMLCreator()
-        zip_file_name = os.path.join(config.path_zips, f'{self.gen_filename()}.zip')
+        zip_file_name = os.path.join(
+            config.path_zips, f'{self.gen_filename()}.zip'
+        )
         # Создание zip архива
         with zipfile.ZipFile(zip_file_name, 'w') as zip_file:
             for _ in range(self.config.num_xml_in_zip):
@@ -80,7 +93,6 @@ class XMLParser:
         Первый: id, level - по одной строке на каждый xml файл
         Второй: id, object_name - по отдельной строке для каждого
             тэга object (получится от 1 до 10 строк на каждый xml файл) """
-    
     def __init__(self, config: AppConfig):
         self.config = config
 
@@ -99,7 +111,8 @@ class XMLParser:
         csv_data_2 = []
 
         with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-            xml_files = [file for file in zip_ref.namelist() if file.endswith('.xml')]
+            name_list = zip_ref.namelist()
+            xml_files = [file for file in name_list if file.endswith('.xml')]
 
             for xml_file in xml_files:
                 with zip_ref.open(xml_file) as f:
@@ -108,7 +121,9 @@ class XMLParser:
                     id_value, level_value, object_names = self.parse_xml(xml_content)
 
                     csv_data_1.append((id_value, level_value))
-                    csv_data_2.extend([(id_value, obj_name) for obj_name in object_names])
+
+                    object_tuples = [(id_value, obj_name) for obj_name in object_names]
+                    csv_data_2.extend(object_tuples)
 
         return csv_data_1, csv_data_2
 
@@ -120,7 +135,8 @@ class XMLParser:
         self.write_file('output_2.csv', csv_data_2)
 
     def write_file(self, filename, csv_data):
-        with open(os.path.join(self.config.path_zips, filename), 'w', newline='') as file:
+        filepath = os.path.join(self.config.path_zips, filename)
+        with open(filepath, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerows(csv_data)
 
@@ -150,7 +166,12 @@ def process_create_csv(config: AppConfig):
     zip_files = xml_parser.get_zip_files(config.path_zips)
 
     with ProcessPoolExecutor() as executor:
-        futures = [executor.submit(xml_parser.parse_zip, os.path.join(config.path_zips, zip_file)) for zip_file in zip_files]
+        futures = [executor.submit(
+                        xml_parser.parse_zip,
+                        os.path.join(
+                            config.path_zips, zip_file
+                        )
+                    ) for zip_file in zip_files]
 
         for future in futures:
             result = future.result()
@@ -162,7 +183,11 @@ def process_create_csv(config: AppConfig):
 
 
 if __name__ == '__main__':
-    config = AppConfig(num_zip_files=50, num_xml_in_zip=100, path_zips=f'{os.path.dirname(os.path.abspath(__file__))}/zips')
+    config = AppConfig(
+                num_zip_files=50,
+                num_xml_in_zip=100,
+                path_zips=f'{os.path.dirname(os.path.abspath(__file__))}/zips'
+            )
     # если нужно удалить данные предыдущего запуска
     process_delete_old_zip(config)
     # 1-я часть ТЗ

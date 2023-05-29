@@ -1,6 +1,6 @@
 import unittest
 from lxml import etree
-from task_solution import XMLCreator, XMLParser
+from task_solution import AppConfig, XMLCreator, XMLParser
 import csv
 import os
 from zipfile import ZipFile
@@ -50,7 +50,12 @@ class TestXMLCreator(unittest.TestCase):
 
 class TestXMLParser(unittest.TestCase):
     def setUp(self):
-        self.parser = XMLParser()
+        config = AppConfig(
+                    num_zip_files=50,
+                    num_xml_in_zip=100,
+                    path_zips=f'{os.path.dirname(os.path.abspath(__file__))}/zips'
+                )
+        self.parser = XMLParser(config)
 
     def test_parse_xml(self):
         xml_content = b"""<root>
@@ -81,28 +86,61 @@ class TestXMLParser(unittest.TestCase):
                 zip_file.writestr(f'test{i}.xml', xml_content)
         
         csv_data_1, csv_data_2 = self.parser.parse_zip(zip_file_name)
-        self.assertEqual(csv_data_1, [('id0', '15'), ('id1', '15'), ('id2', '15')])
-        self.assertEqual(csv_data_2, [('id0', 'obj1'), ('id0', 'obj2'), ('id1', 'obj1'), ('id1', 'obj2'), ('id2', 'obj1'), ('id2', 'obj2')])
+        self.assertEqual(
+                csv_data_1, 
+                [
+                    ('id0', '15'),
+                    ('id1', '15'),
+                    ('id2', '15')
+                ])
+        self.assertEqual(
+                csv_data_2,
+                [
+                    ('id0', 'obj1'),
+                    ('id0', 'obj2'),
+                    ('id1', 'obj1'),
+                    ('id1', 'obj2'),
+                    ('id2', 'obj1'),
+                    ('id2', 'obj2')
+                ])
         os.remove(zip_file_name)
 
     def test_write_csv(self):
-        csv_data_1 = [('id0', '15'), ('id1', '15'), ('id2', '15')]
-        csv_data_2 = [('id0', 'obj1'), ('id0', 'obj2'), ('id1', 'obj1'), ('id1', 'obj2'), ('id2', 'obj1'), ('id2', 'obj2')]
+        csv_data_1 = [
+                ('id0', '15'),
+                ('id1', '15'),
+                ('id2', '15')
+                ]
+        csv_data_2 = [
+                ('id0', 'obj1'),
+                ('id0', 'obj2'),
+                ('id1', 'obj1'),
+                ('id1', 'obj2'),
+                ('id2', 'obj1'),
+                ('id2', 'obj2')
+                ]
         self.parser.write_csv(csv_data_1, csv_data_2)
 
+        path_csv_1 = os.path.join(
+                self.parser.config.path_zips, 'output_1.csv'
+        )
+        path_csv_2 = os.path.join(
+                self.parser.config.path_zips, 'output_2.csv'
+        )
+
         # Проверка содержимого файлов
-        with open('output_1.csv', 'r') as file:
+        with open(path_csv_1, 'r') as file:
             reader = csv.reader(file)
             reader = [tuple(l) for l in reader]
             self.assertEqual(list(reader), csv_data_1)
 
-        with open('output_2.csv', 'r') as file:
+        with open(path_csv_2, 'r') as file:
             reader = csv.reader(file)
             reader = [tuple(l) for l in reader]
             self.assertEqual(list(reader), csv_data_2)
 
-        os.remove('output_1.csv')
-        os.remove('output_2.csv')
+        os.remove(path_csv_1)
+        os.remove(path_csv_2)
 
 
 
